@@ -1,0 +1,72 @@
+---
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: redirects
+  namespace: ${NAMESPACE}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redirects
+  template:
+    metadata:
+      labels:
+        app: redirects
+    spec:
+      containers:
+        - name: redirects
+          image: ${DOCKER_DOMAIN}
+          imagePullPolicy: Always
+          env:
+            - name: WEB_CONCURRENCY
+              value: ${LINKS}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redirects
+  namespace: ${NAMESPACE}
+  labels:
+    app: redirects
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      name: redirects
+  selector:
+    app: redirects
+
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: IngressRoute
+metadata:
+  name: redirects
+  namespace: ${NAMESPACE}
+spec:
+  entryPoints:
+    - websecure
+    - web
+  routes:
+    - match: Host(`${HOST_NAME}`)
+      kind: Rule
+      services:
+        - name: redirects
+          port: 80
+  tls:
+    secretName: chonk-cert
+
+---
+apiVersion: cert-manager.io/v1alpha2
+kind: Certificate
+metadata:
+  name: redirect-cert
+  namespace: ${NAMESPACE}
+spec:
+  commonName: ${HOST_NAME}
+  secretName: redirect-cert
+  dnsNames:
+    - ${HOST_NAME}
+  issuerRef:
+    name: letsencrypt-production
+    kind: ClusterIssuer
